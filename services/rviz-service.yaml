@@ -4,12 +4,13 @@ kind: Service
 metadata:
   name: robot-rviz-vnc
 spec:
-  type: NodePort
+#  type: NodePort
+  type: LoadBalancer
   ports:
     - name: http
       port: 80
       targetPort: 80
-      nodePort: 30381
+#      nodePort: 30381
       protocol: TCP
   selector:
     app: rviz-pod
