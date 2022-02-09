@@ -261,16 +261,16 @@ spec:
                     sudo sed -i '/%ros ALL=(ALL) NOPASSWD:ALL/d' /etc/sudoers
                     exit 0
 
-          startupProbe:
-            exec:
-              command:
-                - /bin/bash
-                - '-c'
-                - |
-                  /usr/local/bin/health_check.sh
-            initialDelaySeconds: 5
-            periodSeconds: 5
-            failureThreshold: 30
+          # startupProbe:
+          #   exec:
+          #     command:
+          #       - /bin/bash
+          #       - '-c'
+          #       - |
+          #         /usr/local/bin/health_check.sh
+          #   initialDelaySeconds: 5
+          #   periodSeconds: 5
+          #   failureThreshold: 30
           livenessProbe:
             exec:
               command:
