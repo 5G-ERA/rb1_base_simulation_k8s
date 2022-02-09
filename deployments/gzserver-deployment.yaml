@@ -163,16 +163,16 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 5
             failureThreshold: 30
-          livenessProbe:
-            exec:
-              command:
-                - /bin/bash
-                - '-c'
-                - |
-                  /usr/local/bin/health_check.sh
-            initialDelaySeconds: 60
-            periodSeconds: 20
-            failureThreshold: 30
+          # livenessProbe:
+          #   exec:
+          #     command:
+          #       - /bin/bash
+          #       - '-c'
+          #       - |
+          #         /usr/local/bin/health_check.sh
+          #   initialDelaySeconds: 60
+          #   periodSeconds: 20
+          #   failureThreshold: 30
         - name: rb1sim-container
           image: >-
             394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:rb1-base-sim-melodic-1.0.0
@@ -271,13 +271,13 @@ spec:
           #   initialDelaySeconds: 5
           #   periodSeconds: 5
           #   failureThreshold: 30
-          livenessProbe:
-            exec:
-              command:
-                - /bin/bash
-                - '-c'
-                - |
-                  /usr/local/bin/health_check.sh
-            initialDelaySeconds: 60
-            periodSeconds: 20
-            failureThreshold: 30
+          # livenessProbe:
+          #   exec:
+          #     command:
+          #       - /bin/bash
+          #       - '-c'
+          #       - |
+          #         /usr/local/bin/health_check.sh
+          #   initialDelaySeconds: 60
+          #   periodSeconds: 120
+          #   failureThreshold: 70
