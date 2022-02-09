@@ -156,7 +156,7 @@ spec:
         - name: amcl-container
           imagePullPolicy: Always
           image: >-
-            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:localization-amcl-devel
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:localization-amcl-1.0.0
           env:
             - name: ROS_MASTER_URI
               valueFrom:
