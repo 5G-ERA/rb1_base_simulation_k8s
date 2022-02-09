@@ -1,0 +1,153 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: robots-gazebo-client
+  labels:
+    app: gazebo-client-pod
+    group: robot-common-group
+    robotType: simulated
+spec:
+  selector:
+    matchLabels:
+      app: gazebo-client-pod
+      group: robot-common-group
+      robotType: simulated
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: gazebo-client-pod
+        group: robot-common-group
+        robotType: simulated
+    spec:
+      volumes:
+        - name: models-data
+          emptyDir: {}
+        - name: descriptions-data
+          emptyDir: {}
+      initContainers:
+        - name: descriptions-container
+          imagePullPolicy: Always
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:rb1-base-sim-workspace-1.0.0
+          volumeMounts:
+            - name: descriptions-data
+              mountPath: /catkin_ws
+          command:
+            - /bin/sh
+            - '-c'
+          args:
+            - |
+              echo "uncompressing workspace"
+              pkg="/data/rb1-base-minimal-data.tar"
+              cpkg="${pkg}.gz"
+              src_path="/data"
+              dest="/catkin_ws"
+              cd "${src_path}"
+              if ! pigz -dk "${cpkg}"
+              then
+                echo "error uncompression"
+                exit 1
+              fi
+              cd "${dest}"
+              echo "unpacking workspace"
+              if ! tar -xf "${pkg}"
+              then
+                echo "error unpacking"
+                exit 1
+              fi
+              echo "done"
+        - name: models-container
+          imagePullPolicy: Always
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:gazebo-models-1.1.1
+          volumeMounts:
+            - name: models-data
+              mountPath: /models
+          command:
+            - /bin/sh
+            - '-c'
+          args:
+            - |
+              echo "uncompressing models"
+              cd /data
+              if ! pigz -dk /data/gazebo-models.tar.gz
+              then
+                echo "error uncompression"
+                exit 1
+              fi
+              ls /data
+              cd /models
+              if ! tar -xf /data/gazebo-models.tar
+              then
+                echo "error unpacking"
+                exit 1
+              fi
+              echo "done"
+      containers:
+        - name: gzclient-container
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:gazebo-melodic-client-1.1.1
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: models-data
+              mountPath: /home/ros/.gazebo/models
+              subPath: models
+            - name: descriptions-data
+              mountPath: /home/ros/rb1sim
+          env:
+            - name: GAZEBO_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.gazebo
+            - name: ROS_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.ros
+            - name: DEVELOPMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: devel.environment
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - "/bin/bash"
+                  - "-c"
+                  - |
+                    if [[ $DEVELOPMENT_ENVIRONMENT == "true" ]]
+                    then
+                      exit 0
+                    fi
+                    sudo apt purge \
+                      wget \
+                    sudo apt clean
+                    sudo apt autoremove
+                    sudo rm /usr/bin/wget
+                    sudo rm /usr/share/info/wget.info.gz
+                    sudo sed -i '/%ros ALL=(ALL) NOPASSWD:ALL/d' /etc/sudoers
+                    exit 0
+          resources:
+            requests:
+              cpu: 2000m
+              memory: 300Mi
+          startupProbe:
+            httpGet:
+              port: 80
+            initialDelaySeconds: 1
+            periodSeconds: 3
+            failureThreshold: 50
+          livenessProbe:
+            httpGet:
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 3

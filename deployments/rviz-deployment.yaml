@@ -1,0 +1,142 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: robots-rviz
+  labels:
+    app: rviz-pod
+    group: robot-common-group
+    robotType: simulated
+spec:
+  selector:
+    matchLabels:
+      app: rviz-pod
+      group: robot-common-group
+      name: robots-rviz-pod
+      robotType: simulated
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: rviz-pod
+        group: robot-common-group
+        name: robots-rviz-pod
+        robotType: simulated
+    spec:
+      volumes:
+        - name: descriptions-data
+          emptyDir: {}
+        - name: rviz-config-data
+          configMap:
+            name: robot-1-rviz-configmap
+      initContainers:
+        - name: descriptions-container
+          imagePullPolicy: Always
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:rb1-base-sim-workspace-1.0.0
+          volumeMounts:
+            - name: descriptions-data
+              mountPath: /catkin_ws
+          command:
+            - /bin/sh
+            - '-c'
+          args:
+            - |
+              echo "uncompressing workspace"
+              pkg="/data/rb1-base-minimal-data.tar"
+              cpkg="${pkg}.gz"
+              src_path="/data"
+              dest="/catkin_ws"
+              cd "${src_path}"
+              if ! pigz -dk "${cpkg}"
+              then
+                echo "error uncompression"
+                exit 1
+              fi
+              cd "${dest}"
+              echo "unpacking workspace"
+              if ! tar -xf "${pkg}"
+              then
+                echo "error unpacking"
+                exit 1
+              fi
+              echo "done"
+        - name: ros-test-container
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:ros-melodic-ros-core-bionic
+          env:
+            - name: ROS_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.ros
+            - name: ROS_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          command:
+            - /bin/bash
+            - '-c'
+          args:
+            - |
+              source /opt/ros/melodic/setup.bash
+              if ! [ $? -eq 0 ]; then
+                echo "Could not load ros setup"
+                exit 1
+              fi
+              for i in {1..1000}; do
+                rosnode ping -c1 /rosout | grep -q -E time=[0-9]+\(.[0-9]+\)?ms
+                if [ $? -eq 0 ]; then
+                  echo "rosmaster alive"
+                  exit 0
+                fi
+                sleep 0.25
+              done
+              echo "rosmaster unavailable"
+              exit 1
+      containers:
+        - name: rviz-container
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:rviz-melodic-slim-1.0.2
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: descriptions-data
+              mountPath: /home/ros/catkin_ws
+            - name: rviz-config-data
+              mountPath: /opt/ros/melodic/share/rviz/default.rviz
+              subPath: default.rviz
+          env:
+            - name: GAZEBO_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.gazebo
+            - name: ROS_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.ros
+            - name: ROS_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          resources:
+            requests:
+              cpu: 2000m
+              memory: 300Mi
+          startupProbe:
+            httpGet:
+              port: 80
+            initialDelaySeconds: 1
+            periodSeconds: 3
+            failureThreshold: 50
+          livenessProbe:
+            httpGet:
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 3

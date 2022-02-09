@@ -1,0 +1,283 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: robots-gazebo-server
+  labels:
+    app: gazebo-server-pod
+    group: robot-common-group
+    robotType: simulated
+spec:
+  selector:
+    matchLabels:
+      app: gazebo-server-pod
+      group: robot-common-group
+      robotType: simulated
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: gazebo-server-pod
+        group: robot-common-group
+        robotType: simulated
+    spec:
+      volumes:
+        - name: models-data
+          emptyDir: {}
+        - name: descriptions-data
+          emptyDir: {}
+      initContainers:
+        - name: models-container
+          imagePullPolicy: Always
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:gazebo-models-1.1.1
+          volumeMounts:
+            - name: models-data
+              mountPath: /models
+          command:
+            - /bin/sh
+            - '-c'
+          args:
+            - |
+              echo "uncompressing models"
+              pkg="/data/gazebo-models.tar"
+              cpkg="${pkg}.gz"
+              src_path="/data"
+              dest="/models"
+              cd "${src_path}"
+              if ! pigz -dk "${cpkg}"
+              then
+                echo "error uncompression"
+                exit 1
+              fi
+              cd "${dest}"
+              if ! tar -xf "${pkg}"
+              then
+                echo "error unpacking"
+                exit 1
+              fi
+              echo "done"
+        - name: descriptions-container
+          imagePullPolicy: Always
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:rb1-base-sim-workspace-1.0.0
+          volumeMounts:
+            - name: descriptions-data
+              mountPath: /catkin_ws
+          command:
+            - /bin/sh
+            - '-c'
+          args:
+            - |
+              echo "uncompressing workspace"
+              pkg="/data/rb1-base-minimal-data.tar"
+              cpkg="${pkg}.gz"
+              src_path="/data"
+              dest="/catkin_ws"
+              cd "${src_path}"
+              if ! pigz -dk "${cpkg}"
+              then
+                echo "error uncompression"
+                exit 1
+              fi
+              cd "${dest}"
+              echo "unpacking workspace"
+              if ! tar -xf "${pkg}"
+              then
+                echo "error unpacking"
+                exit 1
+              fi
+              echo "done"
+      containers:
+        - name: gzserver-container
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:gazebo-melodic-server-1.1.1
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: models-data
+              mountPath: /home/ros/models
+              subPath: models
+            - name: descriptions-data
+              mountPath: /home/ros/rb1sim
+          env:
+            - name: GAZEBO_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.gazebo.local
+            - name: ROS_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.ros
+            - name: ROS_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: WORLD_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: gazebo.world
+            - name: ROS_SETUP_FILES
+              value: "/home/ros/catkin_ws/install/setup.bash:/home/ros/rb1sim/install/setup.bash"
+            - name: DEVELOPMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: devel.environment
+          ports:
+            - containerPort: 11345
+              name: gazeboport
+          resources:
+            requests:
+              cpu: 1000m
+              memory: 400Mi
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - "/bin/bash"
+                  - "-c"
+                  - |
+                    if [[ $DEVELOPMENT_ENVIRONMENT == "true" ]]
+                    then
+                      exit 0
+                    fi
+                    sudo apt purge \
+                      wget \
+                    sudo apt clean
+                    sudo apt autoremove
+                    sudo rm /usr/bin/wget
+                    sudo rm /usr/share/info/wget.info.gz
+                    sudo sed -i '/%ros ALL=(ALL) NOPASSWD:ALL/d' /etc/sudoers
+                    exit 0
+
+          startupProbe:
+            exec:
+              command:
+                - /bin/bash
+                - '-c'
+                - |
+                  /usr/local/bin/health_check.sh
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - '-c'
+                - |
+                  /usr/local/bin/health_check.sh
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 30
+        - name: rb1sim-container
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:rb1-base-sim-melodic-1.0.0
+          imagePullPolicy: Always
+          env:
+            - name: GAZEBO_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.gazebo.local
+            - name: ROS_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.ros
+            - name: ROS_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: ROBOT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: robot.id
+            - name: HAS_ELEVATOR
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: has.elevator
+            - name: X_INIT_POSE
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: x.init.pose
+            - name: Y_INIT_POSE
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: y.init.pose
+            - name: Z_INIT_POSE
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: z.init.pose
+            - name: T_INIT_POSE
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: t.init.pose
+            - name: ROBOT_SIM_GPU
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: robot.sim.gpu
+            - name: ROBOT_SIM_FAKE_ELEVATOR
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: robot.sim.fake.elevator
+            - name: DEVELOPMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: devel.environment
+          resources:
+            requests:
+              cpu: 300m
+              memory: 100Mi
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - "/bin/bash"
+                  - "-c"
+                  - |
+                    if [[ $DEVELOPMENT_ENVIRONMENT == "true" ]]
+                    then
+                      exit 0
+                    fi
+                    sudo apt purge \
+                      wget \
+                    sudo apt clean
+                    sudo apt autoremove
+                    sudo rm /usr/bin/wget
+                    sudo rm /usr/share/info/wget.info.gz
+                    sudo sed -i '/%ros ALL=(ALL) NOPASSWD:ALL/d' /etc/sudoers
+                    exit 0
+
+          startupProbe:
+            exec:
+              command:
+                - /bin/bash
+                - '-c'
+                - |
+                  /usr/local/bin/health_check.sh
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - '-c'
+                - |
+                  /usr/local/bin/health_check.sh
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 30

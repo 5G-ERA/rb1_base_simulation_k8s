@@ -1,0 +1,19 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: robots-common-env-configmap
+data:
+  # master uri
+  master.uri.gazebo: http://robots-gazebo-service:11345
+  master.uri.ros: http://robots-ros-master-service:11311
+
+  # master uri local
+  master.uri.gazebo.local: http://localhost:11345
+  master.uri.ros.local: http://localhost:11311
+
+  # world
+  gazebo.world: "$(find rb1_base_gazebo)/worlds/rb1_base_office.world"
+
+  #devel environment
+  devel.environment: "true"

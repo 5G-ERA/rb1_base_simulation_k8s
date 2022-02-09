@@ -1,0 +1,175 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: robots-gazebo-web
+  labels:
+    app: gazebo-web-pod
+    group: robot-common-group
+    robotType: simulated
+spec:
+  selector:
+    matchLabels:
+      app: gazebo-web-pod
+      group: robot-common-group
+      robotType: simulated
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: gazebo-web-pod
+        group: robot-common-group
+        robotType: simulated
+    spec:
+      volumes:
+        - name: models-data
+          emptyDir: {}
+      initContainers:
+        - name: models-container
+          imagePullPolicy: Always
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:gazebo-models-1.1.1
+          volumeMounts:
+            - name: models-data
+              mountPath: /models
+          command:
+            - /bin/sh
+            - '-c'
+          args:
+            - |
+              echo "uncompressing models"
+              cd /data
+              if ! pigz -dk /data/gazebo-models.tar.gz
+              then
+                echo "error uncompression"
+                exit 1
+              fi
+              ls /data
+              cd /models
+              if ! tar -xf /data/gazebo-models.tar
+              then
+                echo "error unpacking"
+                exit 1
+              fi
+              echo "done"
+        - name: descriptions-container
+          imagePullPolicy: Always
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:rviz-descriptions-1.0.2
+          volumeMounts:
+            - name: models-data
+              mountPath: /catkin_ws
+          command:
+            - /bin/sh
+            - '-c'
+          args:
+            - |
+              echo "uncompressing descriptions"
+              cd /data
+              if ! pigz -dk /data/description-data.tar.gz
+              then
+                echo "error uncompression"
+                exit 1
+              fi
+              ls /data
+              cd /tmp
+              echo "packing descriptions"
+              if ! tar -xf /data/description-data.tar
+              then
+                echo "error unpacking"
+                exit 1
+              fi
+              echo "Changing owner"
+              if ! chown 1000:1000 -R install
+              then
+                echo "error changing owner"
+                exit 1
+              fi
+              echo "moving descriptions"
+              cd /tmp/install/share/
+              rm -rf rm catkin_tools_prebuild
+              find -mindepth 2 -maxdepth 2 -type d -not -name *meshes* -exec rm -rf {} \;
+              find -type f -name *package.xml -exec rm -rf {} \;
+              if ! mv /tmp/install/share/* /catkin_ws/models
+              then
+                echo "error moving descriptions"
+                exit 1
+              fi
+              echo "done"
+        - name: ros-test-container
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:ros-melodic-ros-core-bionic
+          env:
+            - name: ROS_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.ros
+            - name: ROS_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          command:
+            - /bin/bash
+            - '-c'
+          args:
+            - |
+              source /opt/ros/melodic/setup.bash
+              if ! [ $? -eq 0 ]; then
+                echo "Could not load ros setup"
+                exit 1
+              fi
+              for i in {1..1000}; do
+                rosnode ping -c1 /rosout | grep -q -E time=[0-9]+\(.[0-9]+\)?ms
+                if ! [ $? -eq 0 ]; then
+                  echo "rosmaster unavailable"
+                  continue
+                fi
+                rosnode ping -c1 /gazebo | grep -q -E time=[0-9]+\(.[0-9]+\)?ms
+                if [ $? -eq 0 ]; then
+                  echo "ros node reached gazebo"
+                  exit 0
+                fi
+                sleep 0.25
+              done
+              exit 1
+      containers:
+        - name: gzweb-container
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:gazebo-web-1.1.1
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: models-data
+              mountPath: /data/models
+              subPath: models
+          env:
+            - name: GAZEBO_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.gazebo
+            - name: ROS_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.ros
+          resources:
+            requests:
+              cpu: 2000m
+              memory: 300Mi
+          startupProbe:
+            httpGet:
+              port: 8080
+            initialDelaySeconds: 1
+            periodSeconds: 3
+            failureThreshold: 50
+          livenessProbe:
+            httpGet:
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 3

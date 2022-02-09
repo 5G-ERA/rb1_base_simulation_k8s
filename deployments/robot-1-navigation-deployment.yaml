@@ -1,0 +1,177 @@
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: robot-1-navigation
+  labels:
+    app: navigation-pod
+    group: robot-1-group
+    robotType: simulated
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: navigation-pod
+      group: robot-1-group
+      name: robot-1-navigation
+      robotType: simulated
+  template:
+    metadata:
+      labels:
+        app: navigation-pod
+        group: robot-1-group
+        name: robot-1-navigation
+        robotType: simulated
+    spec:
+      containers:
+        - name: move-base-container
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:navigation-move_base-1.0.0
+          imagePullPolicy: Always
+          env:
+            - name: ROS_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.ros
+            - name: ROS_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: ROBOT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: robot.id
+            - name: USE_COMMON_GLOBAL_FRAME
+              value: 'true'
+            - name: COMMON_GLOBAL_FRAME
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: map.global.frame
+            - name: AVOID_OBSTACLES
+              value: 'true'
+            - name: ROS_BRUP_LAUNCH
+              value: navigation_bringup.launch
+            - name: DEVELOPMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: devel.environment
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - "/bin/bash"
+                  - "-c"
+                  - |
+                    if [[ $DEVELOPMENT_ENVIRONMENT == "true" ]]
+                    then
+                      exit 0
+                    fi
+                    sudo apt purge \
+                      wget \
+                    sudo apt clean
+                    sudo apt autoremove
+                    sudo rm /usr/bin/wget
+                    sudo rm /usr/share/info/wget.info.gz
+                    sudo sed -i '/%ros ALL=(ALL) NOPASSWD:ALL/d' /etc/sudoers
+                    exit 0
+
+          startupProbe:
+            exec:
+              command:
+                - /bin/bash
+                - '-c'
+                - |
+                  /usr/local/bin/health_check.sh
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - '-c'
+                - |
+                  /usr/local/bin/health_check.sh
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 200m
+              memory: 600Mi
+        - name: safety-container
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:navigation-safety-1.0.0
+          imagePullPolicy: Always
+          env:
+            - name: ROS_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.ros
+            - name: ROS_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: ROBOT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: robot.id
+            - name: ROS_BU_LAUNCH
+              value: 'safety_bringup.launch'
+            - name: HAS_SAFETY_CONTROLLER
+              value: 'true'
+            - name: DEVELOPMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: devel.environment
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - "/bin/bash"
+                  - "-c"
+                  - |
+                    if [[ $DEVELOPMENT_ENVIRONMENT == "true" ]]
+                    then
+                      exit 0
+                    fi
+                    sudo apt purge \
+                      wget \
+                    sudo apt clean
+                    sudo apt autoremove
+                    sudo rm /usr/bin/wget
+                    sudo rm /usr/share/info/wget.info.gz
+                    sudo sed -i '/%ros ALL=(ALL) NOPASSWD:ALL/d' /etc/sudoers
+                    exit 0
+
+          startupProbe:
+            exec:
+              command:
+                - /bin/bash
+                - '-c'
+                - |
+                  /usr/local/bin/health_check.sh
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - '-c'
+                - |
+                  /usr/local/bin/health_check.sh
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 200m
+              memory: 100Mi

@@ -1,0 +1,43 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: robots-ros-master
+  labels:
+    app: ros-master-pod
+    group: robot-common-group
+    robotType: simulated
+spec:
+  selector:
+    matchLabels:
+      app: ros-master-pod
+      group: robot-common-group
+      robotType: simulated
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: ros-master-pod
+        group: robot-common-group
+        robotType: simulated
+    spec:
+      imagePullSecrets:
+        - name: internal-registry-json-key
+      containers:
+        - name: master-container
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:ros-melodic-ros-core-bionic
+          env:
+            - name: ROS_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          args:
+            - roscore
+          ports:
+            - containerPort: 11311
+              name: rosmasterport
+          resources:
+            requests:
+              cpu: 100m
+              memory: 50Mi

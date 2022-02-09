@@ -1,0 +1,17 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: robot-rviz-vnc
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30381
+      protocol: TCP
+  selector:
+    app: rviz-pod
+    group: robot-common-group
+    robotType: simulated

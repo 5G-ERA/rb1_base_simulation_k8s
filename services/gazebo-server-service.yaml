@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: robots-gazebo-service
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: gazebo
+      port: 11345
+      protocol: TCP
+  selector:
+    app: gazebo-server-pod
+    group: robot-common-group
+    robotType: simulated

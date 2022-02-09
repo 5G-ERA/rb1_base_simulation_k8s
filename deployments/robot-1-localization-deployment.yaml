@@ -1,0 +1,250 @@
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: robot-1-localization
+  labels:
+    app: localization-pod
+    group: robot-1-group
+    robotType: simulated
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: localization-pod
+      group: robot-1-group
+      name: robot-1-localization
+      robotType: simulated
+  template:
+    metadata:
+      labels:
+        app: localization-pod
+        group: robot-1-group
+        name: robot-1-localization
+        robotType: simulated
+    spec:
+      volumes:
+        - name: maps-data
+          emptyDir: {}
+      initContainers:
+        - name: maps-container
+          imagePullPolicy: Always
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:rb1-base-sim-maps-1.0.0
+          volumeMounts:
+            - name: maps-data
+              mountPath: /maps
+          command:
+            - /bin/sh
+            - '-c'
+          args:
+            - |
+              echo "uncompressing maps"
+              pkg="/data/rb1-base-maps-data.tar"
+              cpkg="${pkg}.gz"
+              src_path="/data"
+              dest="/maps"
+              cd "${src_path}"
+              if ! pigz -dk "${cpkg}"
+              then
+                echo "error uncompression"
+                exit 1
+              fi
+              cd "${dest}"
+              if ! tar -xf "${pkg}"
+              then
+                echo "error unpacking"
+                exit 1
+              fi
+              echo "done"
+      containers:
+        - name: map-server-container
+          imagePullPolicy: Always
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:localization-map_server-1.0.0
+          volumeMounts:
+            - name: maps-data
+              mountPath: >-
+                /home/ros/catkin_ws/install/share/localization_bringup/maps
+              subPath: maps
+          env:
+            - name: ROS_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.ros
+            - name: ROS_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: ROBOT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: robot.id
+            - name: USE_COMMON_GLOBAL_FRAME
+              value: 'true'
+            - name: COMMON_GLOBAL_FRAME
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: map.global.frame
+            - name: MAP_FILE
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: localization.map
+            - name: MAP_FOLDER
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: localization.map.folder
+            - name: MAP_SUBFOLDER
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: localization.map.subfolder
+            - name: DEVELOPMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: devel.environment
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - "/bin/bash"
+                  - "-c"
+                  - |
+                    if [[ $DEVELOPMENT_ENVIRONMENT == "true" ]]
+                    then
+                      exit 0
+                    fi
+                    sudo apt purge \
+                      wget \
+                    sudo apt clean
+                    sudo apt autoremove
+                    sudo rm /usr/bin/wget
+                    sudo rm /usr/share/info/wget.info.gz
+                    sudo sed -i '/%ros ALL=(ALL) NOPASSWD:ALL/d' /etc/sudoers
+                    exit 0
+
+          startupProbe:
+            exec:
+              command:
+                - /bin/bash
+                - '-c'
+                - |
+                  /usr/local/bin/health_check.sh
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - '-c'
+                - |
+                  /usr/local/bin/health_check.sh
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+        - name: amcl-container
+          imagePullPolicy: Always
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:localization-amcl-devel
+          env:
+            - name: ROS_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.ros
+            - name: ROS_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: ROBOT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: robot.id
+            - name: X_INIT_POSE
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: x.init.pose
+            - name: Y_INIT_POSE
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: y.init.pose
+            - name: Z_INIT_POSE
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: z.init.pose
+            - name: T_INIT_POSE
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: t.init.pose
+            - name: USE_COMMON_GLOBAL_FRAME
+              value: 'true'
+            - name: COMMON_GLOBAL_FRAME
+              valueFrom:
+                configMapKeyRef:
+                  name: robot-1-env-configmap
+                  key: map.global.frame
+            - name: DEVELOPMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: devel.environment
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - "/bin/bash"
+                  - "-c"
+                  - |
+                    if [[ $DEVELOPMENT_ENVIRONMENT == "true" ]]
+                    then
+                      exit 0
+                    fi
+                    sudo apt purge \
+                      wget \
+                    sudo apt clean
+                    sudo apt autoremove
+                    sudo rm /usr/bin/wget
+                    sudo rm /usr/share/info/wget.info.gz
+                    sudo sed -i '/%ros ALL=(ALL) NOPASSWD:ALL/d' /etc/sudoers
+                    exit 0
+
+          startupProbe:
+            exec:
+              command:
+                - /bin/bash
+                - '-c'
+                - |
+                  /usr/local/bin/health_check.sh
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - '-c'
+                - |
+                  /usr/local/bin/health_check.sh
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 300m
+              memory: 500Mi
