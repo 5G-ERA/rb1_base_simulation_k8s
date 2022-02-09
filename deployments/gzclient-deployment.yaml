@@ -133,8 +133,8 @@ spec:
                     exit 0
           resources:
             requests:
-              cpu: 2000m
-              memory: 300Mi
+              cpu: 3000m
+              memory: 500Mi
           startupProbe:
             httpGet:
               port: 80
