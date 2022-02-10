@@ -89,6 +89,18 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 5
             failureThreshold: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - '-c'
+                - |
+                  /usr/local/bin/health_check.sh
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+            timeoutSeconds: 10
           livenessProbe:
             exec:
               command:
@@ -99,6 +111,7 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 20
             failureThreshold: 30
+            timeoutSeconds: 10
           resources:
             requests:
               cpu: 200m
@@ -161,6 +174,18 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 5
             failureThreshold: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - '-c'
+                - |
+                  /usr/local/bin/health_check.sh
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+            timeoutSeconds: 10
           livenessProbe:
             exec:
               command:
@@ -171,6 +196,7 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 20
             failureThreshold: 30
+            timeoutSeconds: 10
           resources:
             requests:
               cpu: 200m

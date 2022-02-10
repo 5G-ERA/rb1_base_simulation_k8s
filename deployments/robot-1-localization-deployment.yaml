@@ -224,7 +224,7 @@ spec:
                     sudo sed -i '/%ros ALL=(ALL) NOPASSWD:ALL/d' /etc/sudoers
                     exit 0
 
-          startupProbe:
+          readinessProbe:
             exec:
               command:
                 - /bin/bash
