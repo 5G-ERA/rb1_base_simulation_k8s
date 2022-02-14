@@ -101,3 +101,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
+          ports:
+            - containerPort: 8888
+              name: web
