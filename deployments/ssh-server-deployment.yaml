@@ -59,7 +59,7 @@ spec:
       containers:
         - name: server-container
           image: >-
-            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:webssh-server-1.5.3
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:webssh-server-devel
           imagePullPolicy: Always
           volumeMounts:
             - name: descriptions-data
