@@ -1,0 +1,84 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: robots-ssh-server
+  labels:
+    app: ssh-server-pod
+    group: robot-common-group
+    robotType: simulated
+spec:
+  selector:
+    matchLabels:
+      app: ssh-server-pod
+      group: robot-common-group
+      robotType: simulated
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: ssh-server-pod
+        group: robot-common-group
+        robotType: simulated
+    spec:
+      volumes:
+        - name: descriptions-data
+          emptyDir: {}
+      initContainers:
+        - name: descriptions-container
+          imagePullPolicy: Always
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:rb1-base-sim-workspace-1.0.0
+          volumeMounts:
+            - name: descriptions-data
+              mountPath: /catkin_ws
+          command:
+            - /bin/sh
+            - '-c'
+          args:
+            - |
+              echo "uncompressing workspace"
+              pkg="/data/rb1-base-minimal-data.tar"
+              cpkg="${pkg}.gz"
+              src_path="/data"
+              dest="/catkin_ws"
+              cd "${src_path}"
+              if ! pigz -dk "${cpkg}"
+              then
+                echo "error uncompression"
+                exit 1
+              fi
+              cd "${dest}"
+              echo "unpacking workspace"
+              if ! tar -xf "${pkg}"
+              then
+                echo "error unpacking"
+                exit 1
+              fi
+              echo "done"
+      containers:
+        - name: server-container
+          image: >-
+            394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:webssh-server-1.5.3
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: descriptions-data
+              mountPath: /home/ros/rb1sim
+          env:
+            - name: GAZEBO_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.gazebo.local
+            - name: ROS_MASTER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: robots-common-env-configmap
+                  key: master.uri.ros
+            - name: ROS_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          ports:
+            - containerPort: 22
+              name: ssh
