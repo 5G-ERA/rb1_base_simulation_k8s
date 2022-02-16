@@ -22,7 +22,7 @@ spec:
         robotType: simulated
     spec:
       containers:
-        - name: server-container
+        - name: client-container
           image: >-
             394603622351.dkr.ecr.eu-central-1.amazonaws.com/5g-era-workshop:webssh-client-1.5.3
           imagePullPolicy: Always
