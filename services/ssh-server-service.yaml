@@ -4,8 +4,8 @@ kind: Service
 metadata:
   name: robots-ssh-server
 spec:
-  type: ClusterIP
-  #clusterIP: None
+  #type: ClusterIP
+  type: LoadBalancer
   ports:
     - name: ssh
       port: 22
